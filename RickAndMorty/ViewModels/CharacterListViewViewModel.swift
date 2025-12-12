@@ -9,6 +9,7 @@ import UIKit
 
 protocol CharacterListViewViewModelDelegate : AnyObject {
     func didLoadInitialCharacters()
+    func didSelectCharacter(_ character : RMCharacter)
 }
 
 final class CharacterListViewViewModel  : NSObject {
@@ -16,19 +17,20 @@ final class CharacterListViewViewModel  : NSObject {
     public weak var delegate: CharacterListViewViewModelDelegate?
     
     private var characters: [RMCharacter] = [] {
-           didSet {
-               for character in characters {
-                   let viewModel = RMCharacterCollectionViewCellViewModel(
-                       characterName: character.name,
-                       characterStatus: character.status,
-                       characterImageUrl: URL(string: character.image)
-                   )
-                   cellViewModels.append(viewModel)
-               }
-           }
-       }
-
-       private var cellViewModels: [RMCharacterCollectionViewCellViewModel] = []
+        didSet {
+            for character in characters {
+                let viewModel = RMCharacterCollectionViewCellViewModel(
+                    characterName: character.name,
+                    characterStatus: character.status,
+                    characterImageUrl: URL(string: character.image)
+                )
+                cellViewModels.append(viewModel)
+            }
+        }
+    }
+    
+    private var cellViewModels: [RMCharacterCollectionViewCellViewModel] = []
+    private var apiInfo : RMGetAllCharactersResponse.Info? = nil
     
     func fetchCharacters() {
         RMService.shared.execute(.listCharactersRequests, expecting : RMGetAllCharactersResponse.self) { [weak self] result in
@@ -36,6 +38,8 @@ final class CharacterListViewViewModel  : NSObject {
             case .success(let responseModel):
                 let result = responseModel.results
                 self?.characters = result
+                let info = responseModel.info
+                self?.apiInfo = info
                 DispatchQueue.main.async {
                     self?.delegate?.didLoadInitialCharacters()
                 }
@@ -44,6 +48,14 @@ final class CharacterListViewViewModel  : NSObject {
                 print(error)
             }
         }
+    }
+    
+    public func fetchAdditionalCharacters() {
+        
+    }
+    
+    private var shouldShowLoadMoreIndicator: Bool {
+        return apiInfo?.next != nil
     }
 }
 
@@ -64,6 +76,20 @@ extension CharacterListViewViewModel : UICollectionViewDataSource, UICollectionV
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
         let width = (UIScreen.main.bounds.width - 30) / 2
         return CGSize(width: width, height: width * 1.5)
+        
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        collectionView.deselectItem(at: indexPath, animated: true)
+        let character = characters[indexPath.row]
+        delegate?.didSelectCharacter(character)
+    }
+}
 
+
+extension CharacterListViewViewModel : UIScrollViewDelegate {
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        guard shouldShowLoadMoreIndicator else { return }
+        
     }
 }
